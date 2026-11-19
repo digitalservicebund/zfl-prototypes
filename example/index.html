@@ -1,0 +1,194 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Test Dashboard</title>
+<style>
+  :root {
+    color-scheme: light;
+    --page: #f9f9f7;
+    --surface: #fcfcfb;
+    --text-primary: #0b0b0b;
+    --text-secondary: #52514e;
+    --muted: #898781;
+    --grid: #e1e0d9;
+    --baseline: #c3c2b7;
+    --border: rgba(11,11,11,0.10);
+    --series-1: #2a78d6;
+    --up: #006300;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --page: #0d0d0d;
+      --surface: #1a1a19;
+      --text-primary: #f0efec;
+      --text-secondary: #c3c2b7;
+      --grid: #2c2c2a;
+      --baseline: #383835;
+      --border: rgba(255,255,255,0.10);
+      --series-1: #3987e5;
+      --up: #0ca30c;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --page: #0d0d0d;
+    --surface: #1a1a19;
+    --text-primary: #f0efec;
+    --text-secondary: #c3c2b7;
+    --grid: #2c2c2a;
+    --baseline: #383835;
+    --border: rgba(255,255,255,0.10);
+    --series-1: #3987e5;
+    --up: #0ca30c;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--page);
+    color: var(--text-primary);
+    font: 15px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  main { max-width: 960px; margin: 0 auto; padding: 32px 16px; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  .sub { color: var(--text-secondary); margin: 0 0 24px; }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px 20px;
+  }
+  .tiles {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 16px;
+    margin-bottom: 16px;
+  }
+  .tile-label { color: var(--text-secondary); font-size: 13px; }
+  .tile-value { font-size: 32px; font-weight: 600; margin: 4px 0; }
+  .tile-delta { font-size: 13px; color: var(--up); }
+  .tile-delta.neutral { color: var(--text-secondary); }
+
+  h2 { font-size: 15px; margin: 0 0 12px; }
+  .chart { position: relative; }
+  .chart svg { display: block; width: 100%; height: auto; overflow: visible; }
+  .chart text { fill: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+  .bar { fill: var(--series-1); }
+  .hit { fill: transparent; cursor: default; }
+  .col:hover .bar { opacity: 0.8; }
+  .tooltip {
+    position: absolute;
+    pointer-events: none;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 6px 10px;
+    font-size: 13px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.12);
+    transform: translate(-50%, -100%);
+    white-space: nowrap;
+    display: none;
+  }
+  .tooltip strong { display: block; }
+
+  details { margin-top: 12px; color: var(--text-secondary); font-size: 13px; }
+  table { border-collapse: collapse; margin-top: 8px; font-variant-numeric: tabular-nums; }
+  th, td { text-align: left; padding: 4px 16px 4px 0; border-bottom: 1px solid var(--grid); }
+  td:last-child, th:last-child { text-align: right; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Test Dashboard</h1>
+  <p class="sub">Dummy data, to check that GitHub Pages deployment works.</p>
+
+  <section class="tiles">
+    <div class="card">
+      <div class="tile-label">Applications</div>
+      <div class="tile-value">1,284</div>
+      <div class="tile-delta">▲ 12% vs. last month</div>
+    </div>
+    <div class="card">
+      <div class="tile-label">Avg. processing time</div>
+      <div class="tile-value">4.2 days</div>
+      <div class="tile-delta">▼ 0.8 days vs. last month</div>
+    </div>
+    <div class="card">
+      <div class="tile-label">Open cases</div>
+      <div class="tile-value">87</div>
+      <div class="tile-delta neutral">No change</div>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>Applications per week</h2>
+    <div class="chart" id="chart">
+      <div class="tooltip" id="tooltip"></div>
+    </div>
+    <details>
+      <summary>Show as table</summary>
+      <table id="table"><thead><tr><th>Week</th><th>Applications</th></tr></thead><tbody></tbody></table>
+    </details>
+  </section>
+</main>
+
+<script>
+  const data = [
+    ["W1", 212], ["W2", 248], ["W3", 231], ["W4", 290],
+    ["W5", 276], ["W6", 318], ["W7", 302], ["W8", 345],
+  ];
+
+  const W = 640, H = 240, m = { top: 8, right: 0, bottom: 24, left: 36 };
+  const iw = W - m.left - m.right, ih = H - m.top - m.bottom;
+  const max = 400, ticks = [0, 100, 200, 300, 400];
+  const y = v => m.top + ih - (v / max) * ih;
+  const step = iw / data.length, bw = Math.min(32, step * 0.5), r = 4;
+  const ns = "http://www.w3.org/2000/svg";
+  const el = (tag, attrs, parent) => {
+    const e = document.createElementNS(ns, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    parent.appendChild(e);
+    return e;
+  };
+
+  const svg = el("svg", { viewBox: `0 0 ${W} ${H}`, role: "img",
+    "aria-label": "Bar chart of applications per week, see table below" }, document.getElementById("chart"));
+
+  ticks.forEach(t => {
+    el("line", { x1: m.left, x2: W - m.right, y1: y(t), y2: y(t),
+      stroke: t === 0 ? "var(--baseline)" : "var(--grid)", "stroke-width": 1 }, svg);
+    el("text", { x: m.left - 8, y: y(t) + 4, "text-anchor": "end" }, svg).textContent = t;
+  });
+
+  const tip = document.getElementById("tooltip");
+  const chart = document.getElementById("chart");
+
+  data.forEach(([label, v], i) => {
+    const cx = m.left + step * i + step / 2;
+    const x0 = cx - bw / 2, x1 = cx + bw / 2, top = y(v), base = y(0);
+    const g = el("g", { class: "col" }, svg);
+    // Bar with 4px rounded top, square base anchored to the baseline
+    el("path", { class: "bar", d:
+      `M${x0},${base} V${top + r} Q${x0},${top} ${x0 + r},${top} H${x1 - r} Q${x1},${top} ${x1},${top + r} V${base} Z` }, g);
+    el("text", { x: cx, y: H - 6, "text-anchor": "middle" }, svg).textContent = label;
+    const hit = el("rect", { class: "hit", x: m.left + step * i, y: m.top, width: step, height: ih }, g);
+
+    hit.addEventListener("mouseenter", () => {
+      const s = chart.clientWidth / W;
+      tip.innerHTML = `<strong>${label}</strong>${v.toLocaleString("en")} applications`;
+      tip.style.left = cx * s + "px";
+      tip.style.top = (top * s - 8) + "px";
+      tip.style.display = "block";
+    });
+    hit.addEventListener("mouseleave", () => { tip.style.display = "none"; });
+
+    document.querySelector("#table tbody").insertAdjacentHTML("beforeend",
+      `<tr><td>${label}</td><td>${v}</td></tr>`);
+  });
+</script>
+</body>
+</html>
